@@ -1,22 +1,30 @@
-/* ═══════════════════════════════════════════
-   GUENNA TRACKER — APP.JS
+/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+   GUENNA TRACKER â€” APP.JS
    Habit & Finance Tracker
-═══════════════════════════════════════════ */
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
 
 'use strict';
 
-// ── SPLASH ─────────────────────────────────
+// â”€â”€ SPLASH â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 window.addEventListener('DOMContentLoaded', () => {
-  setTimeout(() => {
-    document.getElementById('app').classList.remove('hidden');
-    document.getElementById('splash').addEventListener('animationend', () => {
-      document.getElementById('splash').style.display = 'none';
-    });
-  }, 3200);
+  const splash = document.getElementById('splash');
+  const app = document.getElementById('app');
+  let shown = false;
+
+  const revealApp = () => {
+    if (shown) return;
+    shown = true;
+    app.classList.remove('hidden');
+    splash.style.display = 'none';
+  };
+
+  splash.addEventListener('animationend', revealApp, { once: true });
+  setTimeout(revealApp, 3600);
+
   init();
 });
 
-// ── STATE ───────────────────────────────────
+// â”€â”€ STATE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const STORAGE_KEY = 'guenna_tracker_v1';
 
 function defaultState() {
@@ -51,7 +59,7 @@ function uid() {
   return Math.random().toString(36).slice(2, 9);
 }
 
-// ── MONTHS ─────────────────────────────────
+// â”€â”€ MONTHS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const MONTHS = [
   'Enero','Febrero','Marzo','Abril','Mayo','Junio',
   'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'
@@ -61,14 +69,70 @@ function daysInMonth(y, m) {
   return new Date(y, m + 1, 0).getDate();
 }
 
-// ── INIT ────────────────────────────────────
+function monthIndex(year, month) {
+  return year * 12 + month;
+}
+
+function matchesMonthYearByDate(dateStr, month, year) {
+  if (!dateStr) return false;
+  const d = new Date(dateStr);
+  return d.getMonth() === month && d.getFullYear() === year;
+}
+
+function incomeForMonth(month, year) {
+  return state.income
+    .filter(i => {
+      if (!i.month && i.month !== 0) return false;
+      return +i.month === month && +i.year === year;
+    })
+    .reduce((acc, i) => acc + (+i.amount || 0), 0);
+}
+
+function variableForMonth(month, year) {
+  return state.variable
+    .filter(i => matchesMonthYearByDate(i.date, month, year))
+    .reduce((acc, i) => acc + (+i.amount || 0), 0);
+}
+
+function fixedForMonth(month, year) {
+  const target = monthIndex(year, month);
+  return state.fixed
+    .filter(i => {
+      if (i.startYear !== undefined && i.startMonth !== undefined) {
+        return monthIndex(+i.startYear, +i.startMonth) <= target;
+      }
+      // Compatibilidad con datos antiguos: si no tenían fecha de inicio,
+      // los aplicamos solo al mes seleccionado actual para evitar retroactivos masivos.
+      return month === state.month && year === state.year;
+    })
+    .reduce((acc, i) => acc + (+i.amount || 0), 0);
+}
+
+function monthNet(month, year) {
+  return incomeForMonth(month, year) - fixedForMonth(month, year) - variableForMonth(month, year);
+}
+
+function cumulativeBalanceUntil(month, year) {
+  const target = monthIndex(year, month);
+  let total = 0;
+  for (let y = 2020; y <= year; y++) {
+    for (let m = 0; m < 12; m++) {
+      if (monthIndex(y, m) > target) break;
+      total += monthNet(m, y);
+    }
+  }
+  return total;
+}
+
+// â”€â”€ INIT â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function init() {
   buildSelectors();
   setupTabs();
+  setupResetAllButton();
   render();
 }
 
-// ── SELECTORS ───────────────────────────────
+// â”€â”€ SELECTORS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function buildSelectors() {
   const ms = document.getElementById('monthSelect');
   const ys = document.getElementById('yearSelect');
@@ -98,7 +162,7 @@ function buildSelectors() {
   });
 }
 
-// ── TABS ────────────────────────────────────
+// â”€â”€ TABS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function setupTabs() {
   document.querySelectorAll('.tab').forEach(tab => {
     tab.addEventListener('click', () => {
@@ -110,15 +174,30 @@ function setupTabs() {
   });
 }
 
-// ── RENDER ──────────────────────────────────
+function setupResetAllButton() {
+  const btn = document.getElementById('resetAllData');
+  if (!btn) return;
+  btn.onclick = () => {
+    if (!confirm('¿Reiniciar TODO y ponerlo a 0?')) return;
+    if (!confirm('Esta acción borra hábitos y finanzas. ¿Seguro?')) return;
+
+    state = defaultState();
+    saveState();
+    document.getElementById('monthSelect').value = String(state.month);
+    document.getElementById('yearSelect').value = String(state.year);
+    render();
+  };
+}
+
+// â”€â”€ RENDER â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function render() {
   renderHabits();
   renderFinance();
 }
 
-// ════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 //  HABITS
-// ════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 function renderHabits() {
   renderDailyTable();
@@ -137,7 +216,7 @@ function weekCheckKey(habitId, week) {
   return `${state.year}-${state.month}-${habitId}-w${week}`;
 }
 
-// ── DAILY TABLE ─────────────────────────────
+// â”€â”€ DAILY TABLE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function renderDailyTable() {
   const days = daysInMonth(state.year, state.month);
   const head = document.getElementById('dailyHead');
@@ -189,7 +268,7 @@ function renderDailyTable() {
   });
 }
 
-// ── WEEKLY TABLE ────────────────────────────
+// â”€â”€ WEEKLY TABLE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function renderWeeklyTable() {
   const days = daysInMonth(state.year, state.month);
   const weeks = Math.ceil(days / 7);
@@ -237,7 +316,7 @@ function renderWeeklyTable() {
   });
 };
 
-// ── STATS ───────────────────────────────────
+// â”€â”€ STATS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function renderStats() {
   const days = daysInMonth(state.year, state.month);
   const total = state.dailyHabits.length * days;
@@ -274,7 +353,7 @@ function renderStats() {
   document.getElementById('statStreak').textContent = bestStreak;
 }
 
-// ── WEEKLY CHART ─────────────────────────────
+// â”€â”€ WEEKLY CHART â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function renderWeeklyChart() {
   const days = daysInMonth(state.year, state.month);
   const weeks = Math.ceil(days / 7);
@@ -311,7 +390,7 @@ function renderWeeklyChart() {
   }
 };
 
-// ── TOP HABITS ───────────────────────────────
+// â”€â”€ TOP HABITS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function renderTopHabits() {
   const days = daysInMonth(state.year, state.month);
   const el = document.getElementById('topHabits');
@@ -344,7 +423,7 @@ function renderTopHabits() {
   });
 }
 
-// ── HABIT BUTTONS ───────────────────────────
+// â”€â”€ HABIT BUTTONS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function setupHabitButtons() {
   document.getElementById('addDailyHabit').onclick = () => {
     openModal('Nuevo Hábito Diario', [
@@ -367,9 +446,9 @@ function setupHabitButtons() {
   };
 }
 
-// ════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 //  FINANCE
-// ════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 function renderFinance() {
   renderIncomeTable();
@@ -400,13 +479,17 @@ function renderIncomeTable() {
       <tr>
         <td>${escHtml(item.name)}</td>
         <td class="amount">${fmt(item.amount)}</td>
-        <td><button class="delete-fin" data-id="${item.id}" data-type="income">×</button></td>
+        <td>
+          <button class="edit-fin" data-id="${item.id}" data-type="income" title="Editar">✎</button>
+          <button class="delete-fin" data-id="${item.id}" data-type="income" title="Eliminar">×</button>
+        </td>
       </tr>
     `);
   });
 
   document.getElementById('incomeTotalFoot').textContent = fmt(total);
   setupFinDeleteEvents();
+  setupFinEditEvents();
 }
 
 function renderFixedTable() {
@@ -420,13 +503,17 @@ function renderFixedTable() {
       <tr>
         <td>${escHtml(item.name)}</td>
         <td class="amount">${fmt(item.amount)}</td>
-        <td><button class="delete-fin" data-id="${item.id}" data-type="fixed">×</button></td>
+        <td>
+          <button class="edit-fin" data-id="${item.id}" data-type="fixed" title="Editar">✎</button>
+          <button class="delete-fin" data-id="${item.id}" data-type="fixed" title="Eliminar">×</button>
+        </td>
       </tr>
     `);
   });
 
   document.getElementById('fixedTotalFoot').textContent = fmt(total);
   setupFinDeleteEvents();
+  setupFinEditEvents();
 }
 
 function renderVariableTable() {
@@ -448,32 +535,24 @@ function renderVariableTable() {
         <td>${escHtml(item.category || '—')}</td>
         <td style="font-family:var(--font-mono);font-size:11px">${item.date || '—'}</td>
         <td class="amount">${fmt(item.amount)}</td>
-        <td><button class="delete-fin" data-id="${item.id}" data-type="variable">×</button></td>
+        <td>
+          <button class="edit-fin" data-id="${item.id}" data-type="variable" title="Editar">✎</button>
+          <button class="delete-fin" data-id="${item.id}" data-type="variable" title="Eliminar">×</button>
+        </td>
       </tr>
     `);
   });
 
   document.getElementById('variableTotalFoot').textContent = fmt(total);
   setupFinDeleteEvents();
+  setupFinEditEvents();
 }
 
 function renderFinanceStats() {
-  let income = 0, fixed = 0, variable = 0;
-
-  state.income.filter(i => {
-    if (!i.month && i.month !== 0) return true;
-    return +i.month === state.month && +i.year === state.year;
-  }).forEach(i => income += +i.amount);
-
-  state.fixed.forEach(i => fixed += +i.amount);
-
-  state.variable.filter(i => {
-    if (!i.date) return true;
-    const d = new Date(i.date);
-    return d.getMonth() === state.month && d.getFullYear() === state.year;
-  }).forEach(i => variable += +i.amount);
-
-  const balance = income - fixed - variable;
+  const income = incomeForMonth(state.month, state.year);
+  const fixed = fixedForMonth(state.month, state.year);
+  const variable = variableForMonth(state.month, state.year);
+  const balance = cumulativeBalanceUntil(state.month, state.year);
 
   document.getElementById('finBalance').textContent = fmt(balance);
   document.getElementById('finIncome').textContent = fmt(income);
@@ -488,16 +567,22 @@ function renderFinanceStats() {
   document.getElementById('fbVariable').style.width = (variable / max * 100) + '%';
 }
 
+let _finDeleteBound = false;
 function setupFinDeleteEvents() {
-  document.querySelectorAll('.delete-fin').forEach(btn => {
-    btn.onclick = () => {
-      if (!confirm('¿Eliminar este registro?')) return;
-      const t = btn.dataset.type;
-      if (t === 'income')   state.income   = state.income.filter(i => i.id !== btn.dataset.id);
-      if (t === 'fixed')    state.fixed    = state.fixed.filter(i => i.id !== btn.dataset.id);
-      if (t === 'variable') state.variable = state.variable.filter(i => i.id !== btn.dataset.id);
-      saveState(); renderFinance();
-    };
+  if (_finDeleteBound) return;
+  _finDeleteBound = true;
+
+  document.addEventListener('click', e => {
+    const btn = e.target.closest('.delete-fin');
+    if (!btn) return;
+    if (!confirm('¿Eliminar este registro?')) return;
+
+    const t = btn.dataset.type;
+    if (t === 'income') state.income = state.income.filter(i => i.id !== btn.dataset.id);
+    if (t === 'fixed') state.fixed = state.fixed.filter(i => i.id !== btn.dataset.id);
+    if (t === 'variable') state.variable = state.variable.filter(i => i.id !== btn.dataset.id);
+    saveState();
+    renderFinance();
   });
 }
 
@@ -519,7 +604,13 @@ function setupFinanceButtons() {
       { name: 'amount', label: 'Cantidad (€)', type: 'number', placeholder: '0.00' },
     ], fields => {
       if (!fields.name.trim() || !fields.amount) return;
-      state.fixed.push({ id: uid(), name: fields.name.trim(), amount: +fields.amount });
+      state.fixed.push({
+        id: uid(),
+        name: fields.name.trim(),
+        amount: +fields.amount,
+        startMonth: state.month,
+        startYear: state.year
+      });
       saveState(); renderFinance();
     });
   };
@@ -545,9 +636,62 @@ function setupFinanceButtons() {
   };
 }
 
-// ════════════════════════════════════════════
+function setupFinEditEvents() {
+  document.querySelectorAll('.edit-fin').forEach(btn => {
+    btn.onclick = () => {
+      const type = btn.dataset.type;
+      if (type === 'income') {
+        const item = state.income.find(i => i.id === btn.dataset.id);
+        if (!item) return;
+        openModal('Editar ingreso', [
+          { name: 'name', label: 'Concepto', type: 'text', defaultVal: item.name || '' },
+          { name: 'amount', label: 'Cantidad (€)', type: 'number', defaultVal: item.amount || 0 },
+        ], fields => {
+          if (!fields.name.trim() || !fields.amount) return;
+          item.name = fields.name.trim();
+          item.amount = +fields.amount;
+          saveState(); renderFinance();
+        });
+      }
+
+      if (type === 'fixed') {
+        const item = state.fixed.find(i => i.id === btn.dataset.id);
+        if (!item) return;
+        openModal('Editar gasto fijo', [
+          { name: 'name', label: 'Concepto', type: 'text', defaultVal: item.name || '' },
+          { name: 'amount', label: 'Cantidad (€)', type: 'number', defaultVal: item.amount || 0 },
+        ], fields => {
+          if (!fields.name.trim() || !fields.amount) return;
+          item.name = fields.name.trim();
+          item.amount = +fields.amount;
+          saveState(); renderFinance();
+        });
+      }
+
+      if (type === 'variable') {
+        const item = state.variable.find(i => i.id === btn.dataset.id);
+        if (!item) return;
+        openModal('Editar gasto puntual', [
+          { name: 'name', label: 'Concepto', type: 'text', defaultVal: item.name || '' },
+          { name: 'category', label: 'Categoría', type: 'text', defaultVal: item.category || '' },
+          { name: 'date', label: 'Fecha', type: 'date', defaultVal: item.date || '' },
+          { name: 'amount', label: 'Cantidad (€)', type: 'number', defaultVal: item.amount || 0 },
+        ], fields => {
+          if (!fields.name.trim() || !fields.amount) return;
+          item.name = fields.name.trim();
+          item.category = fields.category.trim();
+          item.date = fields.date;
+          item.amount = +fields.amount;
+          saveState(); renderFinance();
+        });
+      }
+    };
+  });
+}
+
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 //  MODAL
-// ════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 let _modalCallback = null;
 
@@ -605,9 +749,10 @@ document.addEventListener('keydown', e => {
   }
 });
 
-// ── UTILS ───────────────────────────────────
+// â”€â”€ UTILS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function escHtml(str) {
   return String(str)
     .replace(/&/g,'&amp;').replace(/</g,'&lt;')
     .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
+
