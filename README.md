@@ -1,4 +1,5 @@
 # Guenna Tracker 📊
+![Alt](logo.png)
 
 **Guenna Tracker** es una herramienta integral de gestión personal diseñada para organizar y visualizar tu progreso mensual en dos áreas fundamentales: **Hábitos** y **Finanzas**. Con una interfaz intuitiva y limpia, permite un seguimiento detallado para alcanzar tus objetivos personales y mantener tu salud financiera bajo control.
 
