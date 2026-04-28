@@ -235,7 +235,7 @@ function renderWeeklyTable() {
       saveState(); renderHabits();
     });
   });
-}
+};
 
 // ── STATS ───────────────────────────────────
 function renderStats() {
@@ -287,7 +287,8 @@ function renderWeeklyChart() {
   for (let w = 0; w < weeks; w++) {
     const startDay = w * 7 + 1;
     const endDay = Math.min(startDay + 6, days);
-    let done = 0, total = 0;
+    let done = 0;
+    let total = 0;
 
     state.dailyHabits.forEach(habit => {
       for (let d = startDay; d <= endDay; d++) {
@@ -308,7 +309,7 @@ function renderWeeklyChart() {
     lbl.textContent = `S${w + 1}`;
     labelsEl.appendChild(lbl);
   }
-}
+};
 
 // ── TOP HABITS ───────────────────────────────
 function renderTopHabits() {
